@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <link rel="manifest" href="manifest.json">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestion Horaire - Jardin Tropical</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 16px;
+      margin: 0;
+      background: #f4f4f4;
+      color: #333;
+    }
+    header {
+      text-align: center;
+      background: #fff;
+      padding: 30px 10px 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    header img {
+      height: 80px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      color: #08754B;
+      font-size: 28px;
+      margin-bottom: 0;
+    }
+    main {
+      padding: 20px;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    label {
+      min-width: 100px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      padding: 10px;
+      min-width: 180px;
+      max-width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.05);
+    }
+    button {
+      background-color: #08754B;
+      color: white;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    button:hover {
+      background-color: #065f3b;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      min-width: 700px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    th, td {
+      padding: 12px 8px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background-color: #E6EB84;
+      font-weight: bold;
+    }
+    .footer {
+      text-align: right;
+      font-weight: bold;
+      margin-top: 15px;
+      font-size: 16px;
+    }
+    @media (max-width: 600px) {
+      header img { height: 60px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="Logo2025-26.jpg" alt="Logo Jardin Tropical" />
+  <h1>Gestion Horaire</h1>
+</header>
+
+<main>
+  <div class="filters">
+    <label>Ajouter un employé :</label>
+    <input type="text" id="newEmployee" placeholder="Nom de l'employé" />
+    <button onclick="ajouterEmploye()">Ajouter</button>
+
+    <label>Supprimer :</label>
+    <select id="removeEmployee"></select>
+    <button onclick="supprimerEmploye()">Supprimer</button>
+  </div>
+
+  <div class="filters">
+    <label>Filtrer par employé :</label>
+    <select id="filterEmployee" onchange="filterRows()">
+      <option value="">-- Tous --</option>
+    </select>
+
+    <label>Date :</label>
+    <input type="date" id="filterDate" onchange="filterRows()" />
+
+    <label>Semaine de :</label>
+    <input type="date" id="filterWeekStart" onchange="filterRows()" />
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Employé</th>
+          <th>Date</th>
+          <th>Entrée</th>
+          <th>Sortie</th>
+          <th>Heures Travaillées</th>
+          <th>Note</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="schedule-body"></tbody>
+    </table>
+  </div>
+
+  <div class="footer" id="total-footer">Total : 0h00</div>
+
+  <div style="text-align:center; margin-top: 20px;">
+    <button onclick="addRow()">Ajouter Horaire</button>
+    <a href="archive.html" style="margin-left: 20px; color: #08754B;">Voir Archives</a>
+  </div>
+</main>
+
+<script>
+let employes = [];
+
+function calculateHours(start, end) {
+  if (!start || !end) return '';
+  const [h1, m1] = start.split(':').map(Number);
+  const [h2, m2] = end.split(':').map(Number);
+  let totalMins = (h2 - h1) * 60 + (m2 - m1);
+  if (totalMins < 0) totalMins += 1440;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h${m < 10 ? '0' + m : m}`;
+}
+
+function updateTotal() {
+  let totalMins = 0;
+  document.querySelectorAll('#schedule-body tr').forEach(row => {
+    if (row.style.display !== "none") {
+      const time = row.cells[4].innerText;
+      if (time.includes("h")) {
+        const [h, m] = time.split("h").map(Number);
+        totalMins += h * 60 + m;
+      }
+    }
+  });
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  document.getElementById("total-footer").innerText = `Total : ${h}h${m < 10 ? '0' + m : m}`;
+}
+
+function filterRows() {
+  const emp = document.getElementById("filterEmployee").value;
+  const date = document.getElementById("filterDate").value;
+  const weekStart = document.getElementById("filterWeekStart").value;
+  const weekEnd = weekStart ? new Date(new Date(weekStart).getTime() + 6 * 86400000).toISOString().split("T")[0] : null;
+
+  document.querySelectorAll('#schedule-body tr').forEach(row => {
+    const empVal = row.cells[0].querySelector("select").value;
+    const dateVal = row.cells[1].querySelector("input").value;
+    let show = true;
+    if (emp && empVal !== emp) show = false;
+    if (date && dateVal !== date) show = false;
+    if (weekStart && (dateVal < weekStart || dateVal > weekEnd)) show = false;
+    row.style.display = show ? "" : "none";
+  });
+
+  updateTotal();
+}
+
+function addRow() {
+  const tr = document.getElementById("schedule-body").insertRow();
+
+  const cellEmp = tr.insertCell();
+  const sel = document.createElement("select");
+  employes.forEach(e => {
+    const o = document.createElement("option");
+    o.value = e;
+    o.textContent = e;
+    sel.appendChild(o);
+  });
+  sel.onchange = filterRows;
+  cellEmp.appendChild(sel);
+
+  const cellDate = tr.insertCell();
+  const inpDate = document.createElement("input");
+  inpDate.type = "date";
+  inpDate.oninput = () => { filterRows(); updateTotal(); };
+  cellDate.appendChild(inpDate);
+
+  const cellStart = tr.insertCell();
+  const inpStart = document.createElement("input");
+  inpStart.type = "time";
+  inpStart.oninput = updateRow;
+  cellStart.appendChild(inpStart);
+
+  const cellEnd = tr.insertCell();
+  const inpEnd = document.createElement("input");
+  inpEnd.type = "time";
+  inpEnd.oninput = updateRow;
+  cellEnd.appendChild(inpEnd);
+
+  const cellWorked = tr.insertCell();
+  cellWorked.innerText = '';
+
+  const cellNote = tr.insertCell();
+  const ta = document.createElement("textarea");
+  cellNote.appendChild(ta);
+
+  const cellAct = tr.insertCell();
+  const trash = document.createElement("i");
+  trash.className = "fas fa-trash";
+  trash.style.cursor = "pointer";
+  trash.onclick = () => { tr.remove(); updateTotal(); };
+  cellAct.appendChild(trash);
+
+  function updateRow() {
+    const h = calculateHours(inpStart.value, inpEnd.value);
+    cellWorked.innerText = h;
+    updateTotal();
+  }
+}
+
+function updateEmployeeSelects() {
+  const filterSel = document.getElementById("filterEmployee");
+  const removeSel = document.getElementById("removeEmployee");
+  filterSel.innerHTML = '<option value="">-- Tous --</option>';
+  removeSel.innerHTML = '';
+  employes.forEach(nom => {
+    const opt1 = document.createElement("option");
+    opt1.value = nom;
+    opt1.textContent = nom;
+    filterSel.appendChild(opt1);
+    const opt2 = document.createElement("option");
+    opt2.value = nom;
+    opt2.textContent = nom;
+    removeSel.appendChild(opt2);
+  });
+}
+
+function ajouterEmploye() {
+  const nom = document.getElementById("newEmployee").value.trim();
+  if (nom && !employes.includes(nom)) {
+    employes.push(nom);
+    localStorage.setItem("employes_liste", JSON.stringify(employes));
+    updateEmployeeSelects();
+    alert("Employé ajouté.");
+    document.getElementById("newEmployee").value = "";
+  }
+}
+
+function supprimerEmploye() {
+  const nom = document.getElementById("removeEmployee").value;
+  if (confirm(`Supprimer ${nom} ?`)) {
+    employes = employes.filter(n => n !== nom);
+    localStorage.setItem("employes_liste", JSON.stringify(employes));
+    updateEmployeeSelects();
+    alert("Employé supprimé.");
+  }
+}
+
+window.onload = () => {
+  employes = JSON.parse(localStorage.getItem("employes_liste")) || ["Alex", "John"];
+  updateEmployeeSelects();
+};
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+  }
+  
+</script>
+
+</body>
+</html>
